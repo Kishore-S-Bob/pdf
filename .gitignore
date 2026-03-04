@@ -26,3 +26,6 @@ Thumbs.db
 # Build outputs
 dist/
 build/
+
+# Playwright
+.playwright-cli/
