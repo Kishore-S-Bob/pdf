@@ -1,3 +1,5 @@
+import base64
+from io import BytesIO
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -9,6 +11,7 @@ from pdf2image import convert_from_bytes
 from PIL import Image
 import json
 
+
 app = FastAPI()
 
 app.add_middleware(
@@ -18,6 +21,83 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def generate_thumbnail(image, max_size=200):
+    """Generate a thumbnail from a PIL Image, maintaining aspect ratio."""
+    original_width, original_height = image.size
+    
+    # Calculate new dimensions while maintaining aspect ratio
+    if original_width > original_height:
+        new_width = max_size
+        new_height = int((original_height / original_width) * max_size)
+    else:
+        new_height = max_size
+        new_width = int((original_width / original_height) * max_size)
+    
+    # Resize the image
+    thumbnail = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    
+    # Convert to RGB if necessary
+    if thumbnail.mode in ('RGBA', 'P'):
+        thumbnail = thumbnail.convert('RGB')
+    
+    return thumbnail
+
+
+@app.post("/pdf-preview")
+async def pdf_preview(
+    file: UploadFile = File(...),
+    max_size: int = 200
+):
+    """
+    Generate thumbnail previews for each page of a PDF.
+    Returns a list of base64-encoded thumbnail images.
+    """
+    if not file:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File {file.filename} is not a PDF"
+        )
+
+    # Limit max_size for performance
+    max_size = min(max(max_size, 50), 400)
+
+    try:
+        content = await file.read()
+        
+        # Convert PDF pages to images
+        images = convert_from_bytes(content)
+        
+        if not images:
+            raise HTTPException(status_code=400, detail="No pages found in PDF")
+
+        # Generate thumbnails for each page
+        thumbnails = []
+        for i, image in enumerate(images):
+            # Generate thumbnail
+            thumbnail = generate_thumbnail(image, max_size)
+            
+            # Convert to base64
+            buffer = BytesIO()
+            thumbnail.save(buffer, format='JPEG', quality=85)
+            buffer.seek(0)
+            
+            base64_image = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            thumbnails.append({
+                'page_number': i + 1,
+                'image': f"data:image/jpeg;base64,{base64_image}"
+            })
+
+        return {
+            'total_pages': len(thumbnails),
+            'thumbnails': thumbnails
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating preview: {str(e)}")
 
 
 @app.post("/merge")

@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import SingleDropZone from '../components/SingleDropZone';
+import PdfPreview from '../components/PdfPreview';
 
 export default function SplitPage() {
   const [file, setFile] = useState(null);
+  const [totalPages, setTotalPages] = useState(0);
   const [startPage, setStartPage] = useState('');
   const [endPage, setEndPage] = useState('');
   const [isSplitting, setIsSplitting] = useState(false);
@@ -10,7 +12,22 @@ export default function SplitPage() {
 
   const handleFileAdded = (newFile) => {
     setFile(newFile);
+    setTotalPages(0);
+    setStartPage('');
+    setEndPage('');
     setError(null);
+  };
+
+  const handleTotalPagesChange = (pages) => {
+    setTotalPages(pages);
+    if (pages > 0) {
+      if (!startPage) {
+        setStartPage('1');
+      }
+      if (!endPage || parseInt(endPage) > pages) {
+        setEndPage(String(pages));
+      }
+    }
   };
 
   const handleSplit = async () => {
@@ -97,6 +114,15 @@ export default function SplitPage() {
       <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
         <SingleDropZone onFileAdded={handleFileAdded} file={file} />
       </div>
+
+      {file && (
+        <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-700 mb-4">
+            Page Previews ({totalPages} pages)
+          </h3>
+          <PdfPreview file={file} onTotalPagesChange={handleTotalPagesChange} />
+        </div>
+      )}
 
       {file && (
         <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
