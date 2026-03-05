@@ -438,6 +438,106 @@ async def reorder_pdf(
         raise HTTPException(status_code=500, detail=f"Error reordering PDF: {str(e)}")
 
 
+@app.post("/protect")
+async def protect_pdf(
+    file: UploadFile = File(...),
+    password: str = Form(...)
+):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File {file.filename} is not a PDF"
+        )
+
+    if not password:
+        raise HTTPException(status_code=400, detail="Password is required")
+
+    try:
+        content = await file.read()
+        file_obj = io.BytesIO(content)
+        reader = PdfReader(file_obj)
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        # Encrypt the PDF with the provided password
+        writer.encrypt(password)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=protected_{file.name}"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error protecting PDF: {str(e)}")
+
+
+@app.post("/unlock")
+async def unlock_pdf(
+    file: UploadFile = File(...),
+    password: str = Form(...)
+):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File {file.filename} is not a PDF"
+        )
+
+    if not password:
+        raise HTTPException(status_code=400, detail="Password is required")
+
+    try:
+        content = await file.read()
+        file_obj = io.BytesIO(content)
+        reader = PdfReader(file_obj)
+
+        # Check if the PDF is encrypted
+        if reader.is_encrypted:
+            try:
+                reader.decrypt(password)
+            except Exception:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Incorrect password. Unable to decrypt the PDF."
+                )
+
+        writer = PdfWriter()
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=unlocked_{file.name}"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error unlocking PDF: {str(e)}")
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
