@@ -475,7 +475,7 @@ async def protect_pdf(
             iter([output.getvalue()]),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename=protected_{file.name}"
+                "Content-Disposition": f"attachment; filename=protected_{file.filename}"
             }
         )
     except HTTPException:
@@ -529,7 +529,7 @@ async def unlock_pdf(
             iter([output.getvalue()]),
             media_type="application/pdf",
             headers={
-                "Content-Disposition": f"attachment; filename=unlocked_{file.name}"
+                "Content-Disposition": f"attachment; filename=unlocked_{file.filename}"
             }
         )
     except HTTPException:
