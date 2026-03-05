@@ -1,4 +1,4 @@
-# MergePDF
+# GodPDF
 
 A web application that allows users to upload multiple PDF files via drag-and-drop, merge them in any order, and download the merged result.
 
