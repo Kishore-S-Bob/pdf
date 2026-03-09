@@ -84,6 +84,13 @@ export default function RotatePage() {
 
   const isFormValid = file && (pageSelectionMode === 'all' || specificPages.trim());
 
+  const parsePages = (pagesStr) => {
+    if (!pagesStr.trim()) return [];
+    return pagesStr.split(',').map(p => parseInt(p.trim(), 10)).filter(n => !isNaN(n));
+  };
+
+  const selectedPages = pageSelectionMode === 'specific' ? parsePages(specificPages) : [];
+
   return (
     <>
       <LoadingOverlay isLoading={isRotating} message="Rotating your PDF..." />
@@ -106,7 +113,7 @@ export default function RotatePage() {
           <h3 className="text-lg font-semibold text-gray-800 mb-4">
             Page Previews ({totalPages} pages)
           </h3>
-          <PdfPreview file={file} onTotalPagesChange={handleTotalPagesChange} rotation={angle} />
+          <PdfPreview file={file} onTotalPagesChange={handleTotalPagesChange} rotation={angle} selectedPages={selectedPages} />
         </div>
       )}
 

@@ -4,7 +4,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 // Set up PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
-export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, rotation = 0 }) {
+export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, rotation = 0, selectedPages = [] }) {
   const [thumbnails, setThumbnails] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -16,14 +16,14 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
     }
   }, [onTotalPagesChange]);
 
-  const renderPage = async (pdf, pageNum, scale) => {
+  const renderPage = async (pdf, pageNum, scale, pageRotation) => {
     try {
       const page = await pdf.getPage(pageNum);
       
       // Create viewport with rotation
       const viewport = page.getViewport({
         scale: scale,
-        rotation: rotation
+        rotation: pageRotation
       });
 
       // Create canvas
@@ -56,7 +56,8 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
     // We'll render first page to get dimensions, then calculate appropriate scale
     try {
       const firstPage = await pdf.getPage(1);
-      const baseViewport = firstPage.getViewport({ scale: 1, rotation: rotation });
+      const firstPageRotation = selectedPages.includes(1) ? rotation : 0;
+      const baseViewport = firstPage.getViewport({ scale: 1, rotation: firstPageRotation });
       
       let scale;
       if (baseViewport.width > baseViewport.height) {
@@ -67,11 +68,13 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
 
       // Render all pages
       for (let i = 1; i <= total; i++) {
-        const imageUrl = await renderPage(pdf, i, scale);
+        const pageRotation = selectedPages.includes(i) ? rotation : 0;
+        const imageUrl = await renderPage(pdf, i, scale, pageRotation);
         if (imageUrl) {
           newThumbnails.push({
             page_number: i,
-            image: imageUrl
+            image: imageUrl,
+            rotation: pageRotation
           });
         }
       }
@@ -127,7 +130,7 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
         pdfDocRef.current = null;
       }
     };
-  }, [file, maxSize, rotation, handleTotalPagesChange]);
+  }, [file, maxSize, rotation, selectedPages, handleTotalPagesChange]);
 
   if (!file) {
     return null;
@@ -168,7 +171,7 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
         >
           <div
             className="w-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100"
-            style={{ aspectRatio: rotation === 90 || rotation === 270 ? '1.414' : '0.707' }}
+            style={{ aspectRatio: thumbnail.rotation === 90 || thumbnail.rotation === 270 ? '1.414' : '0.707' }}
           >
             <img
               src={thumbnail.image}
