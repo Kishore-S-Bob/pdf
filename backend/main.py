@@ -9,6 +9,8 @@ import zipfile
 from pdf2image import convert_from_bytes
 from PIL import Image
 import json
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
 
 
 app = FastAPI()
@@ -612,6 +614,103 @@ async def rotate_pdf(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error rotating PDF: {str(e)}")
+
+
+@app.post("/watermark")
+async def watermark_pdf(
+    file: UploadFile = File(...),
+    text: str = Form(...),
+    position: str = Form(default="center")
+):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File {file.filename} is not a PDF"
+        )
+
+    if not text:
+        raise HTTPException(status_code=400, detail="Watermark text is required")
+
+    valid_positions = ["center", "top-left", "top-right", "bottom-left", "bottom-right"]
+    if position not in valid_positions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid position. Must be one of: {', '.join(valid_positions)}"
+        )
+
+    try:
+        content = await file.read()
+        file_obj = io.BytesIO(content)
+        reader = PdfReader(file_obj)
+        writer = PdfWriter()
+
+        # Get the first page to determine dimensions
+        first_page = reader.pages[0]
+        page_width = float(first_page.mediabox.width)
+        page_height = float(first_page.mediabox.height)
+
+        # Create watermark PDF for each page
+        for page_num, page in enumerate(reader.pages):
+            # Create watermark layer
+            watermark_buffer = io.BytesIO()
+            c = canvas.Canvas(watermark_buffer, pagesize=(page_width, page_height))
+
+            # Set watermark text properties
+            c.setFont("Helvetica", 48)
+            c.setFillColorRGB(0, 0, 0, alpha=0.3)  # Black with 30% opacity
+
+            # Calculate text width for positioning
+            text_width = c.stringWidth(text, "Helvetica", 48)
+            text_height = 48
+
+            # Calculate position based on selection
+            if position == "center":
+                x = (page_width - text_width) / 2
+                y = (page_height - text_height) / 2
+            elif position == "top-left":
+                x = 20
+                y = page_height - text_height - 20
+            elif position == "top-right":
+                x = page_width - text_width - 20
+                y = page_height - text_height - 20
+            elif position == "bottom-left":
+                x = 20
+                y = 20
+            elif position == "bottom-right":
+                x = page_width - text_width - 20
+                y = 20
+
+            # Draw the watermark text
+            c.drawString(x, y, text)
+            c.save()
+            watermark_buffer.seek(0)
+
+            # Read watermark PDF
+            watermark_reader = PdfReader(watermark_buffer)
+            watermark_page = watermark_reader.pages[0]
+
+            # Merge watermark with page
+            page.merge_page(watermark_page)
+            writer.add_page(page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=watermarked_{file.filename}"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error adding watermark: {str(e)}")
 
 
 @app.get("/health")

@@ -4,3 +4,4 @@ python-multipart==0.0.12
 pypdf==5.1.0
 pdf2image==1.17.0
 Pillow==10.4.0
+reportlab==4.0.4
