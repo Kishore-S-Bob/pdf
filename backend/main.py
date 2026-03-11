@@ -842,3 +842,41 @@ async def extract_pages(
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+@app.post("/reverse")
+async def reverse_pdf(file: UploadFile = File(...)):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file provided")
+
+    if not file.filename.lower().endswith(".pdf"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"File {file.filename} is not a PDF"
+        )
+
+    try:
+        content = await file.read()
+        file_obj = io.BytesIO(content)
+        reader = PdfReader(file_obj)
+        writer = PdfWriter()
+
+        # Reverse the order of pages
+        for page in reversed(reader.pages):
+            writer.add_page(page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=reversed_{file.filename}"
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reversing PDF: {str(e)}")
