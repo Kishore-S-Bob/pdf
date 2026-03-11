@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
 
 // Set up PDF.js worker
@@ -8,182 +8,97 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
   const [thumbnails, setThumbnails] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const pdfDocRef = useRef(null);
   const isRenderingRef = useRef(false);
-  const renderIdRef = useRef(0);
-
-  const handleTotalPagesChange = useCallback((pages) => {
-    if (onTotalPagesChange) {
-      onTotalPagesChange(pages);
-    }
-  }, [onTotalPagesChange]);
-
-  const renderPage = async (pdf, pageNum, scale, pageRotation) => {
-    try {
-      const page = await pdf.getPage(pageNum);
-      
-      // Create viewport with rotation
-      const viewport = page.getViewport({
-        scale: scale,
-        rotation: pageRotation
-      });
-
-      // Create canvas
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-
-      // Render PDF page to canvas
-      const renderContext = {
-        canvasContext: context,
-        viewport: viewport
-      };
-
-      await page.render(renderContext).promise;
-
-      // Convert canvas to data URL
-      return canvas.toDataURL('image/jpeg', 0.85);
-    } catch (err) {
-      console.error(`Error rendering page ${pageNum}:`, err);
-      return null;
-    }
-  };
-
-  const generateThumbnails = async (pdf, currentRenderId) => {
-    const total = pdf.numPages;
-    const newThumbnails = [];
-
-    // Calculate scale to fit within maxSize while maintaining aspect ratio
-    // We'll render first page to get dimensions, then calculate appropriate scale
-    try {
-      const firstPage = await pdf.getPage(1);
-      const firstPageRotation = selectedPages.includes(1) ? rotation : 0;
-      const baseViewport = firstPage.getViewport({ scale: 1, rotation: firstPageRotation });
-      
-      let scale;
-      if (baseViewport.width > baseViewport.height) {
-        scale = maxSize / baseViewport.width;
-      } else {
-        scale = maxSize / baseViewport.height;
-      }
-
-      // Render pages sequentially to avoid UI flickering
-      for (let i = 1; i <= total; i++) {
-        // Check if this render is still valid before each page
-        if (currentRenderId !== renderIdRef.current) {
-          return;
-        }
-
-        const pageRotation = selectedPages.includes(i) ? rotation : 0;
-        const imageUrl = await renderPage(pdf, i, scale, pageRotation);
-        
-        if (imageUrl) {
-          newThumbnails.push({
-            page_number: i,
-            image: imageUrl,
-            rotation: pageRotation
-          });
-          // Update thumbnails incrementally for smoother UI
-          setThumbnails([...newThumbnails]);
-        }
-      }
-
-      // Final check before setting total pages
-      if (currentRenderId !== renderIdRef.current) {
-        return;
-      }
-
-      handleTotalPagesChange(total);
-    } catch (err) {
-      // Check if this render is still valid
-      if (currentRenderId !== renderIdRef.current) {
-        return;
-      }
-      setError(err.message || 'Failed to generate thumbnails');
-      setThumbnails([]);
-      handleTotalPagesChange(0);
-    }
-  };
-
-  // Store current rendering parameters to detect changes
-  const renderParamsRef = useRef({ maxSize, rotation, selectedPages });
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     if (!file) {
       setThumbnails([]);
       setError(null);
-      handleTotalPagesChange(0);
-      if (pdfDocRef.current) {
-        pdfDocRef.current.destroy();
-        pdfDocRef.current = null;
-      }
-      renderParamsRef.current = { maxSize, rotation, selectedPages };
+      if (onTotalPagesChange) onTotalPagesChange(0);
       return;
     }
 
-    // Prevent multiple rendering calls if params haven't changed
-    const selectedPagesChanged = 
-      JSON.stringify(renderParamsRef.current.selectedPages) !== JSON.stringify(selectedPages);
-    const paramsChanged = 
-      renderParamsRef.current.maxSize !== maxSize ||
-      renderParamsRef.current.rotation !== rotation ||
-      selectedPagesChanged;
-
-    // Prevent multiple rendering calls
-    if (isRenderingRef.current && !paramsChanged) {
-      return;
-    }
-
-    const currentRenderId = ++renderIdRef.current;
-    renderParamsRef.current = { maxSize, rotation, selectedPages };
-
-    const loadPdf = async () => {
+    const renderPdf = async () => {
+      // 2. Use a Rendering Lock
+      if (isRenderingRef.current) return;
       isRenderingRef.current = true;
+
       setIsLoading(true);
       setError(null);
+      
+      // 3. Clear Preview Container Only Once
+      setThumbnails([]);
 
       try {
-        // Load file as array buffer
         const arrayBuffer = await file.arrayBuffer();
-
-        // Load PDF document
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
+        const total = pdf.numPages;
 
-        // Check if this render is still valid (file hasn't changed)
-        if (currentRenderId !== renderIdRef.current) {
-          pdf.destroy();
-          return;
+        if (onTotalPagesChange) {
+          onTotalPagesChange(total);
         }
 
-        pdfDocRef.current = pdf;
+        const newThumbnails = [];
+        // 7. Optimize Preview Rendering: Limit to the first 5 pages
+        const maxPages = Math.min(total, 5);
 
-        await generateThumbnails(pdf, currentRenderId);
+        // 5. Reuse Canvas Elements
+        if (!canvasRef.current) {
+          canvasRef.current = document.createElement('canvas');
+        }
+        const canvas = canvasRef.current;
+        const context = canvas.getContext('2d');
+
+        // 4. Render Pages Sequentially
+        for (let i = 1; i <= maxPages; i++) {
+          const page = await pdf.getPage(i);
+          const pageRotation = selectedPages.includes(i) ? rotation : 0;
+          
+          const baseViewport = page.getViewport({ scale: 1, rotation: pageRotation });
+          let scale;
+          if (baseViewport.width > baseViewport.height) {
+            scale = maxSize / baseViewport.width;
+          } else {
+            scale = maxSize / baseViewport.height;
+          }
+
+          const viewport = page.getViewport({ scale, rotation: pageRotation });
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+
+          const renderContext = {
+            canvasContext: context,
+            viewport: viewport
+          };
+
+          await page.render(renderContext).promise;
+          const imageUrl = canvas.toDataURL('image/jpeg', 0.85);
+
+          newThumbnails.push({
+            page_number: i,
+            image: imageUrl,
+            rotation: pageRotation
+          });
+        }
+
+        // 6. Avoid State Updates in Render Loops: Store in local variable until completion
+        setThumbnails(newThumbnails);
+        pdf.destroy();
       } catch (err) {
-        // Check if this render is still valid
-        if (currentRenderId !== renderIdRef.current) {
-          return;
-        }
-        setError(err.message || 'Failed to load PDF');
+        console.error('PDF preview error:', err);
+        setError(err.message || 'Failed to generate previews');
         setThumbnails([]);
-        handleTotalPagesChange(0);
       } finally {
-        // Only update loading state if this is still the current render
-        if (currentRenderId === renderIdRef.current) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
         isRenderingRef.current = false;
       }
     };
 
-    loadPdf();
-
-    return () => {
-      // Mark this render as obsolete
-      // The currentRenderId check in loadPdf will prevent state updates
-    };
-  }, [file, maxSize, rotation, selectedPages, handleTotalPagesChange]);
+    // 1. Prevent Infinite Re-rendering: Run only when a new file is uploaded
+    renderPdf();
+  }, [file]);
 
   if (!file) {
     return null;
@@ -197,7 +112,8 @@ export default function PdfPreview({ file, onTotalPagesChange, maxSize = 200, ro
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} fill="none" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
-          <span>Generating page previews...</span>
+          {/* 8. Add Loading Indicator */}
+          <span>Generating preview...</span>
         </div>
       </div>
     );
