@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import MergePage from './pages/MergePage';
 import SplitPage from './pages/SplitPage';
 import CompressPage from './pages/CompressPage';
