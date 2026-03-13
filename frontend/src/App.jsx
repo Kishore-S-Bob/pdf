@@ -311,10 +311,10 @@ export default function App() {
                 onClick={() => handleToolClick(tool.id)}
                 className={`
                   w-full group relative overflow-hidden rounded-2xl p-5 sm:p-6 text-left
-                  transition-all duration-300 ease-out hover:shadow-xl hover:-translate-y-1
+                  transition-all duration-300 ease-out md:hover:scale-[1.02] md:hover:shadow-xl
                   active:scale-[0.98]
                   ${activeTab === tool.id
-                    ? 'bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/25'
+                    ? 'bg-gradient-to-br from-blue-500 via-purple-500 to-indigo-600 text-white shadow-lg shadow-purple-500/25 md:hover:brightness-110'
                     : 'bg-white text-gray-700 shadow-lg shadow-gray-200/50'
                   }
                 `}
