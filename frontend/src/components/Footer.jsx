@@ -15,24 +15,36 @@ export default function Footer({ onNavigate }) {
 
           {/* Links */}
           <nav className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-            <button
-              onClick={() => onNavigate('privacy')}
+            <a
+              href="#privacy-policy"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('privacy');
+              }}
               className="text-sm text-gray-600 hover:text-blue-600 transition-colors duration-200"
             >
               Privacy Policy
-            </button>
-            <button
-              onClick={() => onNavigate('terms')}
+            </a>
+            <a
+              href="#terms-conditions"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('terms');
+              }}
               className="text-sm text-gray-600 hover:text-blue-600 transition-colors duration-200"
             >
               Terms of Service
-            </button>
-            <button
-              onClick={() => onNavigate('contact')}
+            </a>
+            <a
+              href="#contact"
+              onClick={(e) => {
+                e.preventDefault();
+                onNavigate('contact');
+              }}
               className="text-sm text-gray-600 hover:text-blue-600 transition-colors duration-200"
             >
               Contact
-            </button>
+            </a>
           </nav>
 
           {/* Copyright */}

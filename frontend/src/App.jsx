@@ -172,8 +172,15 @@ export default function App() {
   const handleToolClick = (toolId) => {
     setActiveTab(toolId);
     setShowInfoPage(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    
+
+    // Scroll to the upload section (main content area) after a short delay to allow component to mount
+    setTimeout(() => {
+      const mainContent = document.querySelector('main');
+      if (mainContent) {
+        mainContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+
     // Update URL without reloading
     const toolMapRev = {
       'merge': 'merge-pdf',
@@ -197,7 +204,22 @@ export default function App() {
 
   const handleInfoPageClick = (page) => {
     setShowInfoPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Scroll to the info page section with the correct ID
+    const sectionId = page === 'privacy' ? 'privacy-policy' : page === 'terms' ? 'terms-conditions' : 'contact';
+    setTimeout(() => {
+      const section = document.getElementById(sectionId);
+      if (section) {
+        section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        // Fallback to main content if section not found
+        const mainContent = document.querySelector('main');
+        if (mainContent) {
+          mainContent.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }
+    }, 100);
+
     window.history.pushState({}, '', `/${page}`);
   };
 
@@ -414,7 +436,7 @@ export default function App() {
       </div>
 
       {/* Main Content */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 pb-12">
+      <main id="main-content" className="flex-1 w-full max-w-7xl mx-auto px-4 pb-12">
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
           {renderPage()}
         </div>

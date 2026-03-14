@@ -11,7 +11,7 @@ export default function TermsPage() {
 
   return (
     <div className="w-full max-w-3xl mx-auto">
-      <div className="text-center mb-8">
+      <div id="terms-conditions" className="text-center mb-8">
         <h1 className="text-3xl md:text-4xl font-bold text-gray-900 mb-2">
           Terms of Service
         </h1>
